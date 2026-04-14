@@ -50,19 +50,40 @@ const DEFAULT_PORTIONS = {
 function round1(n) { return Math.round(n * 10) / 10 }
 function kjToKcal(kj) { return round1(Number(kj) / 4.184) }
 function todayStr() { return new Date().toISOString().slice(0, 10) }
+
 function calcBMR(p) {
   const age = Number(p.age) || 0
   const height = Number(p.height) || 0
   const weight = Number(p.weight) || 0
   if (!age || !height || !weight) return 0
-  return p.sex === 'male' ? round1(10 * weight + 6.25 * height - 5 * age + 5) : round1(10 * weight + 6.25 * height - 5 * age - 161)
+  return p.sex === 'male'
+    ? round1(10 * weight + 6.25 * height - 5 * age + 5)
+    : round1(10 * weight + 6.25 * height - 5 * age - 161)
 }
+
+function keepLast7Days(obj) {
+  const today = new Date()
+  const validDates = new Set()
+
+  for (let i = 0; i < 7; i++) {
+    const d = new Date()
+    d.setDate(today.getDate() - i)
+    validDates.add(d.toISOString().slice(0, 10))
+  }
+
+  return Object.fromEntries(
+    Object.entries(obj || {}).filter(([date]) => validDates.has(date))
+  )
+}
+
 function parseExercise(text) {
   const m = text.trim().match(/(\d+(?:\.\d+)?)\s*(?:kcal|大卡|千卡|卡)/i)
   if (!m) return null
-  return { name: text.replace(m[0], '').trim() || '运动', kcal: round1(Number(m[1])) }
+  return {
+    name: text.replace(m[0], '').trim() || '运动',
+    kcal: round1(Number(m[1]))
+  }
 }
-
 export default function App() {
   const [foods, setFoods] = useState(BASE_FOODS)
   const [foodPortions, setFoodPortions] = useState(DEFAULT_PORTIONS)
@@ -102,8 +123,23 @@ export default function App() {
   }, [])
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ foods, foodPortions, selectedDate, dailyRecords, exerciseRecords, weightRecords, profile }))
-  }, [foods, foodPortions, selectedDate, dailyRecords, exerciseRecords, weightRecords, profile])
+  const trimmedDailyRecords = keepLast7Days(dailyRecords)
+  const trimmedExerciseRecords = keepLast7Days(exerciseRecords)
+  const trimmedWeightRecords = keepLast7Days(weightRecords)
+
+  localStorage.setItem(
+    STORAGE_KEY,
+    JSON.stringify({
+      foods,
+      foodPortions,
+      selectedDate,
+      dailyRecords: trimmedDailyRecords,
+      exerciseRecords: trimmedExerciseRecords,
+      weightRecords: trimmedWeightRecords,
+      profile
+    })
+  )
+}, [foods, foodPortions, selectedDate, dailyRecords, exerciseRecords, weightRecords, profile])
 
   useEffect(() => {
     setMealItems(dailyRecords[selectedDate] || [])
